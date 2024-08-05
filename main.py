@@ -454,7 +454,7 @@ class CiaAerea():
                             continue
                     if cont == 1:
                         return False, "3 tentativas falhas! Tente novamente..."
-                    aviao = Aviao(modelo, quantidade_assentos, quantidade_bagagens, sigla)
+                    aviao = Aviao(modelo, quantidade_assentos, sigla)
                 self._voos[sigla]._aviao = aviao
                 return True, "Avião alterado com sucesso!"
             else:
@@ -1108,12 +1108,14 @@ def main():
                             input("Voo não encontrado! Tente novamente...")
                             continue
                         # Voo atual
-                        print("VOO")
-                        print("Origem:", voo._origem)
-                        print("Destino:", voo._destino)
-                        print("Avião:", voo._aviao.siglaav)
-
-                        cia._voos[sigla].listar_reservados()
+                        print(f"\nVOO {voo.sigla}")
+                        print(f"{'SIGLA':<10}{'ORIGEM':<20}{'DESTINO':<20}{'AVIÃO':<10}{'ASSENTOS OCUPADOS':<10}")
+                        sigla_str = str(sigla)
+                        origem_str = str(voo.origem)
+                        destino_str = str(voo.destino)
+                        aviao_sigla_str = str(voo.aviao.siglaav)
+                        assento_ocupado_str = str(voo._reservados)
+                        print(f"{sigla_str:<10}{origem_str:<20}{destino_str:<20}{aviao_sigla_str:<10}{assento_ocupado_str:<10}")
                         
                         voo._origem, voo._destino = voo._destino, voo._origem
 
@@ -1121,11 +1123,15 @@ def main():
                         voo._assentos = []
                         voo._reservados = []
                         print("\nVOO DE VOLTA SERÁ: ")
-                        print("Origem:", voo._origem)
-                        print("Destino:", voo._destino)
-                        print("Avião:", voo._aviao.siglaav)
+                        print(f"{'SIGLA':<10}{'ORIGEM':<20}{'DESTINO':<20}{'AVIÃO':<10}{'ASSENTOS OCUPADOS':<10}")
+                        sigla_str = str(sigla)
+                        origem_str = str(voo.origem)
+                        destino_str = str(voo.destino)
+                        aviao_sigla_str = str(voo.aviao.siglaav)
+                        assento_ocupado_str = str(voo._reservados)
+                        print(f"{sigla_str:<10}{origem_str:<20}{destino_str:<20}{aviao_sigla_str:<10}{assento_ocupado_str:<10}")
                         voo.add_assento()
-                        print("Voo realizado com sucesso!")
+                        print("\nVoo realizado com sucesso!")
 
                 # Reservar assento
                 elif opcao == 6:
@@ -1169,7 +1175,7 @@ def main():
                                 cont = 1
                             continue
                         except KeyError:
-                            input("Cliente não encontrado! Tente novamente ou cadastre o cliente.")
+                            input("Cliente não encontrado! Tente novamente ou cadastre o cliente...")
                             if i == 2:
                                 cont = 1
                             continue
@@ -1436,6 +1442,7 @@ def main():
                     continue
             if cont == 1:
                 input("3 tentativas falhas! Tente novamente...")
+                continue
 
             while True:
                 clear()
@@ -1478,7 +1485,7 @@ def main():
                     for i in range(3):
                         try:
                             cpf = int(input("CPF: "))
-                            if cpf in cia._passageiros.keys():
+                            if cpf in cia._passageiros.keys() or cpf in cia._funcionarios.keys():
                                 raise ValueError
                             break
                         except ValueError:
@@ -1506,6 +1513,7 @@ def main():
 
                     passageiro = Passageiro(nome, cpf, telefone)
                     cia.add_passageiro(passageiro)
+                    print("Passageiro cadastrado com sucesso!")
 
                 # Alterar passageiro
                 elif opcao == 2:
