@@ -61,9 +61,10 @@ class Voo():
         return False, "Assento indisponível!"
 
     def cancelar_reserva(self, assento):
-        if assento not in self._assentos:
+        if assento in self._reservados:
             self._assentos.append(assento)
             self._reservados.remove(assento)
+            self._assentos.sort()
             return True, "Reserva cancelada com sucesso!"
         return False, "Assento não reservado!"
     
@@ -206,14 +207,11 @@ class Comissario(Funcionario):
     def set_idiomas(self, idiomas):
         self._idiomas = idiomas
 
+    @abc.abstractmethod
     def autenticar(self, senha):
         if senha == self._senha:
             return True
         return False
-    
-    @abc.abstractmethod
-    def autenticar(self, senha):
-        pass
 
 class Atendente(Funcionario):
     def __init__(self, nome, cpf, salario, senha, terminal):
@@ -227,15 +225,12 @@ class Atendente(Funcionario):
     @terminal.setter
     def set_terminal(self, terminal):
         self._terminal = terminal
-
-    def autenticar(self, senha):
-        if senha == self._senha:
-            return True
-        return False
     
     @abc.abstractmethod
     def autenticar(self, senha):
-        pass
+        if senha == self._senha:
+            return True, "Senha correta"
+        return False, "Senha incorreta"
 
 class Gerente(Funcionario):
     def __init__(self, nome, cpf, salario, senha, expediente):
@@ -249,15 +244,12 @@ class Gerente(Funcionario):
     @expediente.setter
     def set_expediente(self, expediente):
         self._expediente = expediente
-
-    def autenticar(self, senha):
-        if senha == self._senha:
-            return True
-        return False
     
     @abc.abstractmethod
     def autenticar(self, senha):
-        pass
+        if senha == self._senha:
+            return True, "Senha correta"
+        return False, "Senha incorreta"
 
 class ControleAutenticacao():
     def __init__(self):
@@ -265,7 +257,8 @@ class ControleAutenticacao():
 
     def acessoPiloto(self, piloto, senha):
         if isinstance(piloto, Piloto):
-            return piloto.autenticar(senha), "Acesso permitido!"
+            booleano, mensagem = piloto.autenticar(senha)
+            return booleano, mensagem
         return False, "Piloto inválido!"
     
     def acessoComissario(self, comissario, senha):
@@ -275,12 +268,14 @@ class ControleAutenticacao():
     
     def acessoAtendente(self, atendente, senha):
         if isinstance(atendente, Atendente):
-            return atendente.autenticar(senha), "Acesso permitido!"
+            booleano, mensagem = atendente.autenticar(senha)
+            return booleano, mensagem
         return False, "Atendente inválido!"
     
     def acessoGerente(self, gerente, senha):
         if isinstance(gerente, Gerente):
-            return gerente.autenticar(senha), "Acesso permitido!"
+            booleano, mensagem = gerente.autenticar(senha)
+            return booleano, mensagem
         return False, "Gerente inválido!"
 
 class CiaAerea():
@@ -341,8 +336,13 @@ class CiaAerea():
             print("Qual dado deseja alterar?: ")
             print("1. Modelo")
             print("2. Quantidade de assentos")
-            print("3. Quantidade de bagagens")
-            opcao = int(input("Escolha uma opção: "))
+            print("3. Cancelar")
+            try:
+                opcao = int(input("Escolha uma opção: "))
+                if opcao < 1 or opcao > 3:
+                    raise ValueError
+            except ValueError:
+                return False, "Opção inválida!"
 
             if opcao == 1:
                 modelo = input("Modelo: ")
@@ -353,9 +353,7 @@ class CiaAerea():
                 self._avioes[sigla]._quantidade_assentos = quantidade_assentos
                 return True, "Quantidade de assentos alterada com sucesso!"
             elif opcao == 3:
-                quantidade_bagagens = input("Quantidade de bagagens: ")
-                self._avioes[sigla]._quantidade_bagagens = quantidade_bagagens
-                return True, "Quantidade de bagagens alterada com sucesso!"
+                return False, "Operação cancelada!"
             else:
                 return False, "Opção inválida!"
         return False, "Avião não encontrado!"
@@ -367,10 +365,14 @@ class CiaAerea():
         return False, "Avião não encontrado!"
     
     def listar_avioes(self):
-        print("Aviões cadastrados:")
-        print("Sigla\tModelo\t\tQuantidade de assentos")
+        print("\nAVIÕES:")
+        print(f"{'SIGLA':<10}{'MODELO':<20}{'QUANTIDADE DE ASSENTOS':<10}")
         for sigla, aviao in self._avioes.items():
-            print(f"{sigla}\t{aviao.modelo[:15]}\t{aviao.quantidade_assentos}")
+            sigla_str = str(sigla)
+            modelo_str = str(aviao.modelo)
+            quantidade_assentos_str = str(aviao.quantidade_assentos)
+            print(f"{sigla_str:<10}{modelo_str:<20}{quantidade_assentos_str:<10}")
+        print("\n")
 
     def add_voo(self, voo):
         if isinstance(voo, Voo):
@@ -388,7 +390,12 @@ class CiaAerea():
             print("1. Origem")
             print("2. Destino")
             print("3. Avião")
-            opcao = int(input("Escolha uma opção: "))
+            try:
+                opcao = int(input("Escolha uma opção: "))
+                if opcao < 1 or opcao > 3:
+                    raise ValueError
+            except ValueError:
+                return False, "Opção inválida!"
 
             if opcao == 1:
                 origem = input("Origem: ")
@@ -399,13 +406,54 @@ class CiaAerea():
                 self._voos[sigla]._destino = destino
                 return True, "Destino alterado com sucesso!"
             elif opcao == 3:
-                aviao = input("Já possui avião cadastrado?: ")
+                aviao = input("Já possui avião cadastrado? (sim/não): ").lower()
                 if aviao == 'sim':
-                    aviao = input("Digite a sigla do avião: ")
+                    cont = 0
+                    for i in range(3):
+                        siglaav = input("Digite a sigla do avião: ")
+                        if siglaav in self._avioes.keys():
+                            aviao = self._avioes[siglaav]
+                            break
+                        else:
+                            print("Avião não encontrado! Cadastre primeiro.")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        print("3 tentativas falhas! Tente novamente...")
                 else:
                     modelo = input("Modelo: ")
-                    quantidade_assentos = input("Quantidade de assentos: ")
-                    quantidade_bagagens = input("Quantidade de bagagens: ")
+                    # <- Quantidade de assentos ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            quantidade_assentos = int(input("Quantidade de assentos: "))
+                            if quantidade_assentos < 0:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Quantidade inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        return False, "3 tentativas falhas! Tente novamente..."
+
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            siglaav = input("Sigla do avião: ")
+                            if siglaav in self._avioes.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Sigla inválida ou já existe! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        return False, "3 tentativas falhas! Tente novamente..."
                     aviao = Aviao(modelo, quantidade_assentos, quantidade_bagagens, sigla)
                 self._voos[sigla]._aviao = aviao
                 return True, "Avião alterado com sucesso!"
@@ -420,10 +468,15 @@ class CiaAerea():
         return False, "Voo não encontrado!"
 
     def listar_voos(self):
-        print("Voos cadastrados:")
-        print("Sigla\tOrigem\t\tDestino\t\tAvião")
+        print("\nVOOS:")
+        print(f"{'SIGLA':<10}{'ORIGEM':<20}{'DESTINO':<20}{'AVIÃO':<10}")
         for sigla, voo in self._voos.items():
-            print(f"{sigla}\t{voo.origem}\t{voo.destino}\t{voo.aviao.siglaav}")
+            sigla_str = str(sigla)
+            origem_str = str(voo.origem)
+            destino_str = str(voo.destino)
+            aviao_sigla_str = str(voo.aviao.siglaav)
+            print(f"{sigla_str:<10}{origem_str:<20}{destino_str:<20}{aviao_sigla_str:<10}")
+        print("\n")
 
     def add_passageiro(self, passageiro):
         if isinstance(passageiro, Passageiro):
@@ -440,7 +493,12 @@ class CiaAerea():
             print("Qual dado deseja alterar?: ")
             print("1. Nome")
             print("2. Telefone")
-            opcao = int(input("Escolha uma opção: "))
+            try:
+                opcao = int(input("Escolha uma opção: "))
+                if opcao < 1 or opcao > 2:
+                    raise ValueError
+            except ValueError:
+                return False, "Opção inválida!"
 
             if opcao == 1:
                 nome = input("Nome: ")
@@ -461,10 +519,14 @@ class CiaAerea():
         return False, "Passageiro não encontrado!"
     
     def listar_passageiros(self):
-        print("Passageiros cadastrados:")
-        print("CPF\tNome\tTelefone")
+        print("\nPASSAGEIROS")
+        print(f"{'CPF':<15}{'NOME':<20}{'TELEFONE':<15}")
         for cpf, passageiro in self._passageiros.items():
-            print(f"{cpf}\t{passageiro.nome}\t{passageiro.telefone}")
+            cpf_str = str(cpf)
+            nome_str = str(passageiro.nome)
+            telefone_str = str(passageiro.telefone)
+            print(f"{cpf_str:<15}{nome_str[:20]:<20}{telefone_str:<15}")
+        print("\n")
 
     def add_funcionario(self, funcionario):
         if isinstance(funcionario, Funcionario):
@@ -481,7 +543,12 @@ class CiaAerea():
             print("Qual dado deseja alterar?: ")
             print("1. Nome")
             print("2. Salário")
-            opcao = int(input("Escolha uma opção: "))
+            try:
+                opcao = int(input("Escolha uma opção: "))
+                if opcao < 1 or opcao > 2:
+                    raise ValueError
+            except ValueError:
+                return False, "Opção inválida!"
 
             if opcao == 1:
                 nome = input("Nome: ")
@@ -502,10 +569,89 @@ class CiaAerea():
         return False, "Funcionário não encontrado!"
     
     def listar_funcionarios(self):
-        print("Funcionários cadastrados:")
-        print("CPF\tNome\tSalário")
+        print("\nFUNCIONÁRIOS")
+        print(f"{'CPF':<15}{'NOME':<20}{'SALÁRIO':<10}")
         for cpf, funcionario in self._funcionarios.items():
-            print(f"{cpf}\t{funcionario.nome}\t{funcionario.salario}")
+            cpf_str = str(cpf)
+            nome_str = str(funcionario.nome)
+            salario_str = str(funcionario.salario)
+            print(f"{cpf_str:<15}{nome_str[:20]:<20}{salario_str:<10}")
+
+    def listar_pilotos(self):
+        valido = False
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Piloto):
+                valido = True
+                break
+        if not valido:
+            return False, "Não há pilotos cadastrados!"
+        print("\nPILOTOS")
+        print(f"{'CPF':<15}{'NOME':<20}{'SALÁRIO':<10}{'HORAS DE VOO':<10}")
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Piloto):
+                cpf_str = str(cpf)
+                nome_str = str(funcionario.nome)
+                salario_str = str(funcionario.salario)
+                horas_voo_str = str(funcionario.horas_voo)
+                print(f"{cpf_str:<15}{nome_str[:20]:<20}{salario_str:<10}{horas_voo_str:<10}")
+        return True, "Pilotos listados com sucesso!"
+
+    def listar_comissarios(self):
+        valido = False
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Comissario):
+                valido = True
+                break
+        if not valido:
+            return False, "Não há comissários cadastrados!"
+        print("\nCOMISSÁRIOS")
+        print(f"{'CPF':<15}{'NOME':<20}{'SALÁRIO':<10}{'IDIOMAS':<10}")
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Comissario):
+                cpf_str = str(cpf)
+                nome_str = str(funcionario.nome)
+                salario_str = str(funcionario.salario)
+                idiomas_str = str(funcionario.idiomas)
+                print(f"{cpf_str:<15}{nome_str[:20]:<20}{salario_str:<10}{idiomas_str:<10}")
+        return True, "Comissários listados com sucesso!"
+
+    def listar_atendentes(self):
+        valido = False
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Atendente):
+                valido = True
+                break
+        if not valido:
+            return False, "Não há atendentes cadastrados!"
+        print("\nATENDENTES")
+        print(f"{'CPF':<15}{'NOME':<20}{'SALÁRIO':<10}{'TERMINAL':<10}")
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Atendente):
+                cpf_str = str(cpf)
+                nome_str = str(funcionario.nome)
+                salario_str = str(funcionario.salario)
+                terminal_str = str(funcionario.terminal)
+                print(f"{cpf_str:<15}{nome_str[:20]:<20}{salario_str:<10}{terminal_str:<10}")
+        return True, "Atendentes listados com sucesso!"
+
+    def listar_gerentes(self):
+        valido = False
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Gerente):
+                valido = True
+                break
+        if not valido:
+            return False, "Não há gerentes cadastrados!"
+        print("\nGERENTES")
+        print(f"{'CPF':<15}{'NOME':<20}{'SALÁRIO':<10}{'EXPEDIENTE':<10}")
+        for cpf, funcionario in self._funcionarios.items():
+            if isinstance(funcionario, Gerente):
+                cpf_str = str(cpf)
+                nome_str = str(funcionario.nome)
+                salario_str = str(funcionario.salario)
+                expediente_str = str(funcionario.expediente)
+                print(f"{cpf_str:<15}{nome_str[:20]:<20}{salario_str:<10}{expediente_str:<10}")
+        return True, "Gerentes listados com sucesso!"
 
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -533,30 +679,6 @@ def lertxt():
 
     return cia
 
-def autenticaratendente():
-    cia = lertxt()
-    cont = 0
-    for i in range(3):
-        try:
-            cpf = int(input("CPF do Atendente: "))
-            senha = input("Senha: ")
-            if not cia._funcionarios[cpf].autenticar(senha) or cpf not in cia._funcionarios.keys():
-                raise ValueError
-            break
-        except ValueError:
-            input("Senha ou CPF inválido! Tente novamente...")
-            if i == 2:
-                cont = 1
-            continue
-    if cont == 1:
-        return False, "3 tentativas falhas! Tente novamente..."
-
-    # Autenticar atendente
-    atendente = cia._funcionarios[cpf]
-    booleano, _ = ca.acessoAtendente(atendente, senha)
-    if booleano == False:
-        return False, "Acesso negado! Tente novamente..."
-
 ca = ControleAutenticacao()
 
 def main():
@@ -564,72 +686,270 @@ def main():
     cia = lertxt()
 
     while True:
-        while True:
-            clear()
-            print(f"\nBem-vindo à {cia.nome}!")
-            print("1. Gerenciar voos")
-            print("2. Gerenciar aviões")
-            print("3. Gerenciar passageiros")
-            print("4. Gerenciar funcionários")
-            print("5. Sair")
-            try:
-                opcao = int(input("Escolha uma opção: "))
-                if opcao < 1 or opcao > 5:
-                    raise ValueError
-            except ValueError:
-                input("Opção inválida! Tente novamente...")
+        clear()
+        print(f"\nBem-vindo à {cia.nome}!")
+        print("1. Gerenciar voos")
+        print("2. Gerenciar aviões")
+        print("3. Gerenciar passageiros")
+        print("4. Gerenciar funcionários")
+        print("5. Sair")
+        try:
+            opcao = int(input("Escolha uma opção: "))
+            if opcao < 1 or opcao > 5: 
+                raise ValueError
+        except ValueError:
+            input("Opção inválida! Tente novamente...")
+            continue
+
+        # Gerenciar voos
+        if opcao == 1:
+            if not cia._funcionarios.keys():
+                input("Não existe funcionários cadastrados! Cadastre primeiro...")
+                continue
+            p = 0
+            c = 0
+            for key in cia._funcionarios.keys():
+                if isinstance(cia._funcionarios[key], Piloto):
+                    p = 1
+                if isinstance(cia._funcionarios[key], Comissario):
+                    c = 1
+            if c == 0 or p == 0:
+                input("Deve haver ao menos 1 piloto e 1 comissário para essa área! Cadastre primeiro...")
                 continue
 
-            # Gerenciar voos
-            if opcao == 1:
-                if not cia._funcionarios.keys():
-                    input("Não existe funcionários cadastrados! Cadastre primeiro...")
-                    continue
-                p = 0
-                c = 0
-                for key in cia._funcionarios.keys():
-                    if isinstance(cia._funcionarios[key], Piloto):
-                        p = 1
-                    if isinstance(cia._funcionarios[key], Comissario):
-                        c = 1
-                if c == 0 or p == 0:
-                    input("Deve haver ao menos 1 piloto e 1 comissário para essa área! Cadastre primeiro...")
+            while True:
+                clear()
+                print("\nGerenciar voos")
+                print("1. Cadastrar voo")
+                print("2. Alterar voo")
+                print("3. Excluir voo")
+                print("4. Listar voos")
+                print("5. Realizar voo")
+                print("6. Reservar assento")
+                print("7. Cancelar reserva")
+                print("0. Voltar")
+                try:
+                    opcao = int(input("Escolha uma opção: "))
+                    if opcao < 0 or opcao > 7: 
+                        raise ValueError
+                except ValueError:
+                    input("Opção inválida! Tente novamente...")
                     continue
 
-                while True:
-                    clear()
-                    print("\nGerenciar voos")
-                    print("1. Cadastrar voo")
-                    print("2. Alterar voo")
-                    print("3. Excluir voo")
-                    print("4. Listar voos")
-                    print("5. Realizar voo")
-                    print("6. Reservar assento")
-                    print("7. Cancelar reserva")
-                    print("0. Voltar")
-                    try:
-                        opcao = int(input("Escolha uma opção: "))
-                        if opcao < 0 or opcao > 7:
-                            raise ValueError
-                    except ValueError:
-                        input("Opção inválida! Tente novamente...")
+                # Cadastrar voo
+                if opcao == 1:
+                    comissarios = []
+                    print("Cadastrar voo")
+                    # Autenticar o gerente
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF do Gerente: "))
+                            senha = input("Senha: ")
+                            if cpf not in cia._funcionarios.keys():
+                                raise KeyError
+                            gerente = cia._funcionarios[cpf]
+                            booleano, _ = ca.acessoGerente(gerente, senha)
+                            if booleano == False:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Senha inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                        except KeyError:
+                            print("Gerente não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
                         continue
 
-                    # Cadastrar voo
-                    if opcao == 1:
-                        comissarios = []
-                        print("Cadastrar voo")
-                        # Autenticar o gerente
-                        booleano, mes = autenticargerente()
-                        if booleano == False:
-                            input(mes)
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla in cia._voos.keys(): 
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Sigla inválida ou já existe! Tente novamente...")
+                            if i == 2: 
+                                cont = 1
                             continue
+                    if cont == 1: 
+                        input("3 tentativas falhas! Tente novamente..."); 
+                        continue
+
+                    # <- Origem ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            origem = str(input("Origem: "))
+                            if any(char.isdigit() for char in origem):
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Origem inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    
+                    # <- Destino ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            destino = str(input("Destino: "))
+                            if any(char.isdigit() for char in destino):
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Destino inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    
+                    # <- Piloto ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpfpiloto = int(input("CPF do piloto: "))
+                            if cpfpiloto not in cia._funcionarios.keys():
+                                raise KeyError
+                            break
+                        except ValueError:
+                            print("Piloto inválido! Tente novamente.")
+                            if i == 2:
+                                cont = 1
+                            continue
+                        except KeyError:
+                            print("Piloto não encontrado! Cadastre ou tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Quantidade de comissários ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            quantcomissarios = int(input("Quantidade de comissários: "))
+                            if quantcomissarios < 0:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Quantidade inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Comissários ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            for j in range(quantcomissarios):
+                                try:
+                                    cpfcomissario = int(input(f"Comissário {j + 1}: "))
+                                    if not isinstance(cia._funcionarios[cpfcomissario], Comissario):
+                                        raise ValueError
+                                    if cpfcomissario not in cia._funcionarios.keys():
+                                        raise KeyError
+                                except ValueError:
+                                    print("Comissário inválido! Tente novamente...")
+                                    if i == 2:
+                                        cont = 1
+                                    continue
+                                comissarios.append(cpfcomissario)
+                            break
+                        except KeyError:
+                            print("Comissário não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Avião ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            possui = str(input("Já possui avião cadastrado? (sim/não): ")).lower()
+                            if possui not in ['sim', 'não'] or any(char.isdigit() for char in possui):
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Opção inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    
+                    # Se possuir avião cadastrado, escolher avião
+                    if possui == 'sim':
+                        siglaav = input("Digite a sigla do avião: ")
+                        if siglaav in cia._avioes.keys():
+                            aviao = cia._avioes[siglaav]
+                        else:
+                            print("Avião não encontrado! Cadastre primeiro.")
+                    # Se não possuir avião cadastrado, cadastrar avião
+                    else:
+                        # <- Modelo ->
+                        cont = 0
+                        for i in range(3):
+                            try:
+                                modelo = input("Modelo: ")
+                                if any(char.isdigit() for char in modelo):
+                                    raise ValueError
+                                break
+                            except ValueError:
+                                print("Modelo inválido! Tente novamente...")
+                                if i == 2:
+                                    cont = 1
+                                continue
+                        if cont == 1:
+                            input("3 tentativas falhas! Tente novamente...")
+                            continue
+
+                        # <- Quantidade de assentos ->
+                        cont = 0
+                        for i in range(3):
+                            try:
+                                quantidade_assentos = int(input("Quantidade de assentos: "))
+                                if quantidade_assentos < 0:
+                                    raise ValueError
+                                break
+                            except ValueError:
+                                print("Quantidade inválida! Tente novamente...")
+                                if i == 2: 
+                                    cont = 1
+                                continue
+                        if cont == 1:
+                            input("3 tentativas falhas! Tente novamente...")
+                            continue
+
                         # <- Sigla ->
                         cont = 0
                         for i in range(3):
                             try:
-                                sigla = input("Sigla: ")
-                                if sigla in cia._voos.keys():
+                                siglaav = input("Sigla do avião: ")
+                                if siglaav in cia._avioes.keys():
                                     raise ValueError
                                 break
                             except ValueError:
@@ -640,56 +960,133 @@ def main():
                         if cont == 1:
                             input("3 tentativas falhas! Tente novamente...")
                             continue
+                        aviao = Aviao(modelo, quantidade_assentos, siglaav)
+                    voo = Voo(sigla, origem, destino, aviao, cpfpiloto, comissarios)
 
-                        # <- Origem ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                origem = str(input("Origem: "))
-                                if any(char.isdigit() for char in origem):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Origem inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
+                    print(f"\nVOO {voo.sigla}")
+                    print(f"{'SIGLA':<10}{'ORIGEM':<20}{'DESTINO':<20}{'AVIÃO':<10}{'PILOTO':<10}{'COMISSÁRIOS':<10}")
+                    sigla_str = str(sigla)
+                    origem_str = str(voo.origem)
+                    destino_str = str(voo.destino)
+                    aviao_sigla_str = str(voo.aviao.siglaav)
+                    piloto_str = str(voo._piloto)
+                    comissarios_str = str(voo._comissarios)
+                    print(f"{sigla_str:<10}{origem_str:<20}{destino_str:<20}{aviao_sigla_str:<10}{piloto_str:<10}{comissarios_str:<10}")
+                    cia.add_voo(voo)
+                    voo.add_assento()
+                    print("\nVoo cadastrado com sucesso!...")
+
+                # Alterar voo
+                elif opcao == 2:
+                    if not cia._voos.keys():
+                        input("Não existe voos cadastrados! Cadastre um voo primeiro...")
+                        continue
+
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._voos.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Sigla inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
                             continue
-                        
-                        # <- Destino ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                destino = str(input("Destino: "))
-                                if any(char.isdigit() for char in destino):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Destino inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = cia.alterar_voo(sigla)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Voo alterado com sucesso!")
+
+                # Excluir voo
+                elif opcao == 3:
+                    if not cia._voos.keys():
+                        input("Não existe voos cadastrados! Cadastre um voo primeiro...")
+                        continue
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._voos.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Sigla inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
                             continue
-                        
-                        # <- Piloto ->
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = cia.excluir_voo(sigla)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    input("Voo excluído com sucesso!...")
+
+                # Listar voos
+                elif opcao == 4:
+                    if not cia._voos.keys():
+                        input("Não existe voos cadastrados! Cadastre um voo primeiro...")
+                        continue
+                    cia.listar_voos()
+                    print("Voos listados com sucesso!")
+
+                # Realizar voo
+                elif opcao == 5:
+                    # <- Blindagens ->
+                    if not cia._voos.keys():
+                        input("Não existe voos cadastrados! Cadastre um voo primeiro...")
+                        continue
+                    p = 0
+                    for key in cia._funcionarios.keys():
+                        if isinstance(cia._funcionarios[key], Piloto):
+                            p = 1
+                            break
+                    if p == 0:
+                        input("Deve haver ao menos 1 piloto cadastrado para essa área! Cadastre primeiro...")
+                        continue
+                    # <- Autenticar ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF do Piloto: "))
+                            senha = input("Senha: ")
+                            if cpf not in cia._funcionarios.keys():
+                                raise KeyError
+                            piloto = cia._funcionarios[cpf]
+                            booleano, _ = ca.acessoPiloto(piloto, senha)
+                            if booleano == False:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Senha inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                        except KeyError:
+                            print("Piloto não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    else:
+                        # <- Sigla ->
                         cont = 0
                         for i in range(3):
                             try:
-                                cpfpiloto = int(input("CPF do piloto: "))
-                                if cpfpiloto not in cia._funcionarios.keys():
+                                sigla = input("Sigla: ")
+                                if sigla not in cia._voos.keys():
                                     raise KeyError
                                 break
-                            except ValueError:
-                                print("Piloto inválido! Tente novamente.")
-                                if i == 2:
-                                    cont = 1
-                                continue
                             except KeyError:
-                                print("Piloto não encontrado! Cadastre ou tente novamente...")
+                                print("Voo não encontrado! Tente novamente...")
                                 if i == 2:
                                     cont = 1
                                 continue
@@ -697,911 +1094,811 @@ def main():
                             input("3 tentativas falhas! Tente novamente...")
                             continue
 
-                        # <- Quantidade de comissários ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                quantcomissarios = int(input("Quantidade de comissários: "))
-                                if quantcomissarios < 0:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Quantidade inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
+                        if cia._voos[sigla]._piloto != cpf:
+                            input("Piloto não é desse voo! Tente novamente...")
                             continue
 
-                        # <- Comissários ->
+                        # <- Voo ->
                         cont = 0
-                        cond = False
-                        for i in range(3):
-                            try:
-                                for j in range(quantcomissarios):
-                                    try:
-                                        cpfcomissario = int(input(f"Comissário {j + 1}: "))
-                                        if cpfcomissario not in cia._funcionarios.keys():
-                                            raise KeyError
-                                    except ValueError:
-                                        cond = True
-                                        break
-                                    comissarios.append(cpfcomissario)
-                                break
-                            except KeyError:
-                                print("Comissário não encontrado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
+                        try:
+                            if sigla not in cia._voos.keys():
+                                raise KeyError
+                            voo = cia._voos[sigla]
+                        except KeyError:
+                            input("Voo não encontrado! Tente novamente...")
                             continue
-                        if cond:
-                            input("Comissário inválido! Tente novamente...")
-                            continue
+                        # Voo atual
+                        print("VOO")
+                        print("Origem:", voo._origem)
+                        print("Destino:", voo._destino)
+                        print("Avião:", voo._aviao.siglaav)
 
-                        # <- Avião ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                possui = str(input("Já possui avião cadastrado? (sim/não): ")).lower()
-                                if possui not in ['sim', 'não'] or any(char.isdigit() for char in possui):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Opção inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
+                        cia._voos[sigla].listar_reservados()
                         
-                        # Se possuir avião cadastrado, escolher avião
-                        if possui == 'sim':
-                            siglaav = input("Digite a sigla do avião: ")
-                            if siglaav in cia._avioes.keys():
-                                aviao = cia._avioes[siglaav]
-                                voo = Voo(sigla, origem, destino, aviao, cpfpiloto, comissarios)
-                                cia.add_voo(voo)
-                                voo.add_assento()
+                        voo._origem, voo._destino = voo._destino, voo._origem
+
+                        # Voo de retorno
+                        voo._assentos = []
+                        voo._reservados = []
+                        print("\nVOO DE VOLTA SERÁ: ")
+                        print("Origem:", voo._origem)
+                        print("Destino:", voo._destino)
+                        print("Avião:", voo._aviao.siglaav)
+                        voo.add_assento()
+                        print("Voo realizado com sucesso!")
+
+                # Reservar assento
+                elif opcao == 6:
+                    if not cia._voos.keys():
+                        input("Não existe voos cadastrados! Cadastre um voo primeiro...")
+                        continue
+                    if len(voo._reservados) == len(voo._assentos):
+                        input("Todos os assentos estão reservados! Tente novamente...")
+                        continue
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._voos.keys():
+                                raise KeyError
+                            break
+                        except KeyError:
+                            input("Voo não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue        
+
+                    voo = cia._voos[sigla]
+                    # <- CPF do cliente ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpfcliente = int(input("CPF do cliente: "))
+                            if cpfcliente in cia._passageiros.keys():
+                                print("Cliente encontrado!")
                             else:
-                                print("Avião não encontrado! Cadastre primeiro.")
-                        # Se não possuir avião cadastrado, cadastrar avião
-                        else:
-                            modelo = input("Modelo: ")
+                                raise KeyError
+                            break
+                        except ValueError:
+                            input("CPF inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                        except KeyError:
+                            input("Cliente não encontrado! Tente novamente ou cadastre o cliente.")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    voo.listar_disp()
+                    for i in range(3):
+                        try:
+                            assento = int(input("Assento: "))
+                            if assento < 0 or assento >= len(voo._assentos) or assento in voo._reservados:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Assento inválido ou não pode ser reservado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = voo.reservar_assento(assento)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Assento reservado com sucesso!")
+
+                # Cancelar reserva
+                elif opcao == 7:
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._voos.keys():
+                                raise KeyError
+                            break
+                        except KeyError:
+                            print("Voo não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    voo = cia._voos[sigla]
+                    voo.listar_reservados()
+
+                    # <- Assento ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            assento = int(input("Assento: "))
+                            if assento not in voo._reservados:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Assento inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = voo.cancelar_reserva(assento)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Reserva cancelada com sucesso!")
+
+                # Voltar
+                elif opcao == 0:
+                    print("Voltar")
+                    break
+                input("Pressione Enter para continuar...")
+        
+        # Gerenciar aviões
+        elif opcao == 2:
+            if not cia._funcionarios.keys():
+                input("Não existe funcionários cadastrados! Cadastre primeiro...")
+                continue
+            # Autenticar o gerente
+            cont = 0
+            for i in range(3):
+                try:
+                    cpf = int(input("CPF do Gerente: "))
+                    senha = input("Senha: ")
+                    if cpf not in cia._funcionarios.keys():
+                        raise KeyError
+                    gerente = cia._funcionarios[cpf]
+                    booleano, _ = ca.acessoGerente(gerente, senha)
+                    if booleano == False:
+                        raise ValueError
+                    break
+                except ValueError:
+                    print("Senha inválida! Tente novamente...")
+                    if i == 2:
+                        cont = 1
+                    continue
+                except KeyError:
+                    print("Gerente não encontrado! Tente novamente...")
+                    if i == 2:
+                        cont = 1
+                    continue
+            if cont == 1:
+                input("3 tentativas falhas! Tente novamente...")
+                continue
+
+            while True:
+                clear()
+                print("\nGerenciar aviões")
+                print("1. Cadastrar avião")
+                print("2. Alterar avião")
+                print("3. Excluir avião")
+                print("4. Listar aviões")
+                print("5. Voltar")
+                try:
+                    opcao = int(input("Escolha uma opção: "))
+                    if opcao < 1 or opcao > 5:
+                        raise ValueError
+                except ValueError:
+                    input("Opção inválida! Tente novamente...")
+                    continue
+                
+                # Cadastrar avião
+                if opcao == 1:
+                    print("Cadastrar avião")
+                    # <- Modelo ->
+                    modelo = input("Modelo: ")
+                    
+                    # <- Quantidade de assentos ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            quantidade_assentos = int(input("Quantidade de assentos: "))
+                            if quantidade_assentos < 0:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Quantidade inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla in cia._avioes.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Sigla inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    aviao = Aviao(modelo, quantidade_assentos, sigla)
+                    booleano, mensagem = cia.add_aviao(aviao)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Avião cadastrado com sucesso!")
+
+                # Alterar avião
+                elif opcao == 2:
+                    if not cia._avioes.keys():
+                        input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
+                        continue
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._avioes.keys():
+                                raise KeyError
+                            break
+                        except KeyError:
+                            print("Sigla inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = cia.alterar_aviao(sigla)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Avião alterado com sucesso!")
+
+                # Excluir avião
+                elif opcao == 3:
+                    if not cia._avioes.keys():
+                        input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
+                        continue
+                    # <- Sigla ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            sigla = input("Sigla: ")
+                            if sigla not in cia._avioes.keys():
+                                raise KeyError
+                            break
+                        except KeyError:
+                            print("Sigla inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    cia.excluir_aviao(sigla)
+                    print("Avião excluído com sucesso!")
+
+                # Listar aviões
+                elif opcao == 4:
+                    if not cia._avioes.keys():
+                        input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
+                        continue
+                    cia.listar_avioes()
+                    print("Aviões listados com sucesso!")
+
+                # Voltar
+                elif opcao == 5:
+                    print("Voltar")
+                    break
+                input("Pressione Enter para continuar...")
+
+        # Gerenciar passageiros
+        elif opcao == 3:
+            if not cia._funcionarios.keys():
+                input("Não existe funcionários para gerenciar! Cadastre primeiro...")
+                continue
+
+            # Autenticar o atendente
+            cont = 0
+            for i in range(3):
+                try:
+                    cpf = int(input("CPF do Atendente: "))
+                    senha = input("Senha: ")
+                    if cpf not in cia._funcionarios.keys():
+                        raise KeyError
+                    gerente = cia._funcionarios[cpf]
+                    booleano, _ = ca.acessoAtendente(gerente, senha)
+                    if booleano == False:
+                        raise ValueError
+                    break
+                except ValueError:
+                    print("Senha inválida! Tente novamente...")
+                    if i == 2:
+                        cont = 1
+                    continue
+                except KeyError:
+                    print("Atendente não encontrado! Tente novamente...")
+                    if i == 2:
+                        cont = 1
+                    continue
+            if cont == 1:
+                input("3 tentativas falhas! Tente novamente...")
+
+            while True:
+                clear()
+                print("\nGerenciar passageiros")
+                print("1. Cadastrar passageiro")
+                print("2. Alterar passageiro")
+                print("3. Excluir passageiro")
+                print("4. Listar passageiros")
+                print("0. Voltar")
+                try:
+                    opcao = int(input("Escolha uma opção: "))
+                    if opcao < 0 or opcao > 4:
+                        raise ValueError
+                except ValueError:
+                    input("Opção inválida! Tente novamente...")
+                    continue
+
+                # Cadastrar passageiro
+                if opcao == 1:
+                    print("Cadastrar passageiro")
+                    # <- Nome ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            nome = str(input("Nome: "))
+                            if any(char.isdigit() for char in nome):
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("Nome inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            if cpf in cia._passageiros.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("CPF inválido ou já cadastrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Telefone ->
+                    for i in range(3):
+                        try:
+                            telefone = int(input("Telefone: "))
+                            break
+                        except ValueError:
+                            print("Telefone inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    passageiro = Passageiro(nome, cpf, telefone)
+                    cia.add_passageiro(passageiro)
+
+                # Alterar passageiro
+                elif opcao == 2:
+                    if not cia._passageiros.keys():
+                        input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
+                        continue
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            break
+                        except ValueError:
+                            print("CPF inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    booleano, mensagem = cia.alterar_passageiro(cpf)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Passageiro alterado com sucesso!")
+
+                # Excluir passageiro
+                elif opcao == 3:
+                    if not cia._passageiros.keys():
+                        input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
+                        continue
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            break
+                        except ValueError:
+                            print("CPF inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = cia.excluir_passageiro(cpf)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Passageiro excluído com sucesso!")
+
+                # Listar passageiros
+                elif opcao == 4:
+                    if not cia._passageiros.keys():
+                        input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
+                        continue
+                    cia.listar_passageiros()
+                    print("Passageiros listados com sucesso!")
+                
+                # Voltar
+                elif opcao == 0:
+                    print("Voltar")
+                    break
+                input("Pressione Enter para continuar...")
+
+        # Gerenciar funcionários
+        elif opcao == 4:
+            while True:
+                clear()
+                print("\nGerenciar funcionários")
+                print("1. Cadastrar funcionário")
+                print("2. Alterar funcionário")
+                print("3. Excluir funcionário")
+                print("4. Listar funcionários")
+                print("5. Listar pilotos")
+                print("6. Listar comissários")
+                print("7. Listar atendentes")
+                print("8. Listar gerentes")
+                print("0. Voltar")
+                try:
+                    opcao = int(input("Escolha uma opção: "))
+                    if opcao < 0 or opcao > 8:
+                        raise ValueError
+                except ValueError:
+                    input("Opção inválida! Tente novamente...")
+                    continue
+
+                if opcao == 1:
+                    print("Cadastrar funcionário")
+                    # <- Nome ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            nome = str(input("Nome: "))
+                            if any(char.isdigit() for char in nome):
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Nome inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            if cpf in cia._funcionarios.keys():
+                                raise ValueError
+                            break
+                        except ValueError:
+                            print("CPF inválido ou já cadastrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    
+                    # <- Salário ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            salario = float(input("Salário: "))
+                            if salario < 0:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Salário inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+
+                    # <- Senha ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            senha = input("Senha: ")
+                            if len(senha) < 4:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Senha inválida ou não possui tamanho mínimo de 4 dígitos! Tente novamente...")
+                            continue
+
+                    # <- Tipo ->
+                    print("\nTipo de funcionário:")
+                    print("1. Piloto")
+                    print("2. Comissário")
+                    print("3. Atendente")
+                    print("4. Gerente")
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            opcao = int(input("Escolha uma opção: "))
+                            if opcao < 1 or opcao > 4:
+                                raise ValueError
+                            break
+                        except ValueError:
+                            input("Opção inválida! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+
+                    # <- Piloto ->
+                    if opcao == 1:
+                        # <- Horas de voo ->
+                        cont = 0
+                        for i in range(3):
+                            try:
+                                horas_voo = int(input("\nHoras de voo: "))
+                                if horas_voo < 0:
+                                    raise ValueError
+                                break
+                            except ValueError:
+                                input("Quantidade de horas inválida! Tente novamente...")
+                                if i == 2:
+                                    cont = 1
+                                continue
+                        if cont == 1:
+                            input("3 tentativas falhas! Tente novamente...")
+                            continue
+                
+                        funcionario = Piloto(nome, cpf, salario, senha, horas_voo)
+
+                    # <- Comissário ->
+                    elif opcao == 2:
+                        idiomas = []
+                        # <- Quantidade de idiomas ->
+                        cont = 0
+                        for i in range(3):
+                            try:
+                                quant = int(input("Quantidade de idiomas: "))
+                                if quant < 0:
+                                    raise ValueError
+                                break
+                            except ValueError:
+                                input("Quantidade de idiomas inválida! Tente novamente...")
+                                if i == 2:
+                                    cont = 1
+                                continue
+                        if cont == 1:
+                            input("3 tentativas falhas! Tente novamente...")
+                            continue
+                            
+                        # <- Idiomas ->
+                        for i in range(quant):
                             while True:
                                 try:
-                                    quantidade_assentos = int(input("Quantidade de assentos: "))
-                                    if quantidade_assentos < 0:
+                                    ind = str(input(f"Idioma {i + 1}: "))
+                                    if any(char.isdigit() for char in ind):
                                         raise ValueError
                                     break
                                 except ValueError:
-                                    print("Quantidade inválida! Tente novamente...")
+                                    input("Idioma inválido! Tente novamente...")
                                     continue
-                            siglaav = input("Sigla: ")
-                            aviao = Aviao(modelo, quantidade_assentos, siglaav)
-                            voo = Voo(sigla, origem, destino, aviao, cpfpiloto, comissarios)
-                            cia.add_voo(voo)
-                            voo.add_assento()
-                            print("Voo cadastrado com sucesso!...")
+                            idiomas.append(ind)
 
-                    # Alterar voo
-                    elif opcao == 2:
-                        if not cia._voos.keys():
-                            input("Não existe voos cadastrados! Cadastre um voo primeiro...")
-                            continue
+                        funcionario = Comissario(nome, cpf, salario, senha, idiomas)
 
-                        for i in range(3):
-                            try:
-                                sigla = input("Sigla: ")
-                                if sigla not in cia._voos.keys():
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Sigla inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.alterar_voo(sigla)
-                        print("Voo alterado com sucesso!")
-
-                    # Excluir voo
+                    # <- Atendente ->
                     elif opcao == 3:
-                        if not cia._voos.keys():
-                            input("Não existe voos cadastrados! Cadastre um voo primeiro...")
-                            continue
+                        # <- Terminal ->
+                        cont = 0
                         for i in range(3):
                             try:
-                                sigla = input("Sigla: ")
-                                if sigla not in cia._voos.keys():
+                                terminal = int(input("Terminal: "))
+                                if terminal < 0:
                                     raise ValueError
                                 break
                             except ValueError:
-                                print("Sigla inválida! Tente novamente...")
+                                input("Terminal inválido! Tente novamente...")
                                 if i == 2:
                                     cont = 1
                                 continue
                         if cont == 1:
                             input("3 tentativas falhas! Tente novamente...")
                             continue
-                        cia.excluir_voo(sigla)
-                        input("Voo excluído com sucesso!...")
+                        funcionario = Atendente(nome, cpf, salario, senha, terminal)
 
-                    # Listar voos
+                    # <- Gerente ->
                     elif opcao == 4:
-                        if not cia._voos.keys():
-                            input("Não existe voos cadastrados! Cadastre um voo primeiro...")
-                            continue
-                        cia.listar_voos()
-                        print("Voos listados com sucesso!")
-
-                    # Realizar voo
-                    elif opcao == 5:
-                        # <- Blindagens ->
-                        if not cia._voos.keys():
-                            input("Não existe voos cadastrados! Cadastre um voo primeiro...")
-                            continue
-                        p = 0
-                        for key in cia._funcionarios.keys():
-                            if isinstance(cia._funcionarios[key], Piloto):
-                                p = 1
-                                break
-                        if p == 0:
-                            input("Deve haver ao menos 1 piloto cadastrado para essa área! Cadastre primeiro...")
-                            continue
-                        # <- Autenticar ->
+                        # <- Expediente ->
                         cont = 0
                         for i in range(3):
                             try:
-                                cpf = int(input("CPF do Piloto: "))
-                                senha = input("Senha: ")
-                                if cpf not in cia._funcionarios.keys():
-                                    raise KeyError
-                                if not cia._funcionarios[cpf].autenticar(senha):
+                                expediente = str(input("Expediente: "))
+                                if any(char.isdigit() for char in expediente):
                                     raise ValueError
                                 break
                             except ValueError:
-                                print("Senha inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                            except KeyError:
-                                print("Piloto não encontrado! Tente novamente...")
+                                input("Expediente inválido! Tente novamente...")
                                 if i == 2:
                                     cont = 1
                                 continue
                         if cont == 1:
                             input("3 tentativas falhas! Tente novamente...")
                             continue
-
-                        # <- Autenticar piloto ->
-                        piloto = cia._funcionarios[cpf]
-                        booleano, _ = ca.acessoPiloto(piloto, senha)
-                        if booleano == False:
-                            input("Acesso negado! Tente novamente...")
-                            continue
-                        else:
-                            # <- Sigla ->
-                            cont = 0
-                            for i in range(3):
-                                try:
-                                    sigla = input("Sigla: ")
-                                    if sigla not in cia._voos.keys():
-                                        raise KeyError
-                                    break
-                                except KeyError:
-                                    print("Voo não encontrado! Tente novamente...")
-                                    if i == 2:
-                                        cont = 1
-                                    continue
-                            if cont == 1:
-                                input("3 tentativas falhas! Tente novamente...")
-                                continue
-
-                            if cia._voos[sigla]._piloto != cpf:
-                                input("Piloto não é desse voo! Tente novamente...")
-                                continue
-
-                            # <- Voo ->
-                            cont = 0
-                            try:
-                                if sigla not in cia._voos.keys():
-                                    raise KeyError
-                                voo = cia._voos[sigla]
-                            except KeyError:
-                                input("Voo não encontrado! Tente novamente...")
-                                continue
-                            # Voo atual
-                            print("VOO")
-                            print("Origem:", voo._origem)
-                            print("Destino:", voo._destino)
-                            print("Avião:", voo._aviao.siglaav)
-
-                            cia._voos[sigla].listar_reservados()
-                            
-                            voo._origem, voo._destino = voo._destino, voo._origem
-
-                            # Voo de retorno
-                            voo._assentos = []
-                            voo._reservados = []
-                            print("\nVOO DE VOLTA SERÁ: ")
-                            print("Origem:", voo._origem)
-                            print("Destino:", voo._destino)
-                            print("Avião:", voo._aviao.siglaav)
-                            voo.add_assento()
-                            print("Voo realizado com sucesso!")
-
-                    # Reservar assento
-                    elif opcao == 6:
-                        if not cia._voos.keys():
-                            input("Não existe voos cadastrados! Cadastre um voo primeiro...")
-                            continue
-                        if len(voo._reservados) == len(voo._assentos):
-                            input("Todos os assentos estão reservados! Tente novamente...")
-                            continue
-                        # <- Sigla ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                sigla = input("Sigla: ")
-                                if sigla not in cia._voos.keys():
-                                    raise KeyError
-                                break
-                            except KeyError:
-                                input("Voo não encontrado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue        
-
-                        voo = cia._voos[sigla]
-                        # <- CPF do cliente ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpfcliente = int(input("CPF do cliente: "))
-                                if cpfcliente in cia._passageiros.keys():
-                                    print("Cliente encontrado!")
-                                else:
-                                    raise KeyError
-                                break
-                            except ValueError:
-                                input("CPF inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                            except KeyError:
-                                input("Cliente não encontrado! Tente novamente ou cadastre o cliente.")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-
-                        voo.listar_disp()
-                        for i in range(3):
-                            try:
-                                assento = int(input("Assento: "))
-                                if assento < 0 or assento >= len(voo._assentos) or assento in voo._reservados:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Assento inválido ou não pode ser reservado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        voo.reservar_assento(assento)
-                        print("Assento reservado com sucesso!")
-
-                    # Cancelar reserva
-                    elif opcao == 7:
-                        sigla = input("Sigla: ")
-                        voo = cia._voos[sigla]
-                        voo.listar_reservados()
-
-                        # <- Assento ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                assento = int(input("Assento: "))
-                                if assento < 0 or assento >= len(voo._reservados):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Assento inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        voo.cancelar_reserva(assento)
-                        print("Reserva cancelada com sucesso!")
-
-                    # Voltar
-                    elif opcao == 0:
-                        print("Voltar")
-                        break
-                    input("Pressione Enter para continuar...")
-            
-            # Gerenciar aviões
-            elif opcao == 2:
-                if not cia._funcionarios.keys():
-                    input("Não existe funcionários cadastrados! Cadastre primeiro...")
-                    continue
-                # Autenticar o gerente
-                cont = 0
-                for i in range(3):
-                    try:
-                        cpf = int(input("CPF do Gerente: "))
-                        senha = input("Senha: ")
-                        if cpf not in cia._funcionarios.keys():
-                            raise KeyError
-                        if not cia._funcionarios[cpf].autenticar(senha):
-                            raise ValueError
-                        break
-                    except ValueError:
-                        input("Senha inválido! Tente novamente...")
-                        if i == 2:
-                            cont = 1
+                        funcionario = Gerente(nome, cpf, salario, senha, expediente)
+                    booleano, mensagem = cia.add_funcionario(funcionario)
+                    if booleano == False:
+                        input(mensagem)
                         continue
-                    except KeyError:
-                        input("Gerente não encontrado! Tente novamente...")
-                        if i == 2:
-                            cont = 1
+                    print("Funcionário cadastrado com sucesso!")
+
+                # Alterar funcionário
+                elif opcao == 2:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
                         continue
-                if cont == 1:
-                    input("3 tentativas falhas! Tente novamente...")
-                    continue
-
-                # Autenticar gerente
-                gerente = cia._funcionarios[cpf]
-                booleano, _ = ca.acessoGerente(gerente, senha)
-                if booleano == False:
-                    input("Acesso negado! Tente novamente...")
-                    continue
-
-                while True:
-                    clear()
-                    print("\nGerenciar aviões")
-                    print("1. Cadastrar avião")
-                    print("2. Alterar avião")
-                    print("3. Excluir avião")
-                    print("4. Listar aviões")
-                    print("5. Voltar")
-                    try:
-                        opcao = int(input("Escolha uma opção: "))
-                        if opcao < 1 or opcao > 5:
-                            raise ValueError
-                    except ValueError:
-                        input("Opção inválida! Tente novamente...")
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            if cpf not in cia._funcionarios.keys():
+                                raise KeyError
+                            break
+                        except ValueError:
+                            print("CPF inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                        except KeyError:
+                            print("CPF não encontrado! Tente novamente...")
+                            if i == 2:
+                                cont = 1
+                            continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
                         continue
-                    
-                    # Cadastrar avião
-                    if opcao == 1:
-                        print("Cadastrar avião")
-                        # <- Modelo ->
-                        modelo = input("Modelo: ")
-                        
-                        # <- Quantidade de assentos ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                quantidade_assentos = int(input("Quantidade de assentos: "))
-                                if quantidade_assentos < 0:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Quantidade inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-
-                        # <- Sigla ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                sigla = input("Sigla: ")
-                                if sigla in cia._avioes.keys():
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Sigla inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        aviao = Aviao(modelo, quantidade_assentos, sigla)
-                        cia.add_aviao(aviao)
-                        print("Avião cadastrado com sucesso!")
-
-                    # Alterar avião
-                    elif opcao == 2:
-                        if not cia._avioes.keys():
-                            input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
-                            continue
-                        # <- Sigla ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                sigla = input("Sigla: ")
-                                if sigla not in cia._avioes.keys():
-                                    raise KeyError
-                                break
-                            except KeyError:
-                                print("Sigla inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.alterar_aviao(sigla)
-
-                    # Excluir avião
-                    elif opcao == 3:
-                        if not cia._avioes.keys():
-                            input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
-                            continue
-                        # <- Sigla ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                sigla = input("Sigla: ")
-                                if sigla not in cia._avioes.keys():
-                                    raise KeyError
-                                break
-                            except KeyError:
-                                print("Sigla inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.excluir_aviao(sigla)
-                        print("Avião excluído com sucesso!")
-
-                    # Listar aviões
-                    elif opcao == 4:
-                        if not cia._avioes.keys():
-                            input("Não existe aviões cadastrados! Cadastre um avião primeiro...")
-                            continue
-                        cia.listar_avioes()
-                        print("Aviões listados com sucesso!")
-
-                    # Voltar
-                    elif opcao == 5:
-                        print("Voltar")
-                        break
-                    input("Pressione Enter para continuar...")
-
-            # Gerenciar passageiros
-            elif opcao == 3:
-                if not cia._funcionarios.keys():
-                    input("Não existe funcionários para gerenciar! Cadastre primeiro...")
-                    continue
-
-                # Autenticar o atendente
-                booleano, mes = autenticaratendente()
-                if booleano == False:
-                    input(mes)
-                    continue
-
-                while True:
-                    clear()
-                    print("\nGerenciar passageiros")
-                    print("1. Cadastrar passageiro")
-                    print("2. Alterar passageiro")
-                    print("3. Excluir passageiro")
-                    print("4. Listar passageiros")
-                    print("5. Voltar")
-                    try:
-                        opcao = int(input("Escolha uma opção: "))
-                        if opcao < 1 or opcao > 5:
-                            raise ValueError
-                    except ValueError:
-                        input("Opção inválida! Tente novamente...")
+                    booleano, mensagem = cia.alterar_funcionario(cpf)
+                    if booleano == False:
+                        input(mensagem)
                         continue
+                    print("Funcionário alterado com sucesso!")
 
-                    # Cadastrar passageiro
-                    if opcao == 1:
-                        print("Cadastrar passageiro")
-                        # <- Nome ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                nome = str(input("Nome: "))
-                                if any(char.isdigit() for char in nome):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("Nome inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                if cpf in cia._passageiros.keys():
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("CPF inválido ou já cadastrado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-
-                        # <- Telefone ->
-                        for i in range(3):
-                            try:
-                                telefone = int(input("Telefone: "))
-                                break
-                            except ValueError:
-                                print("Telefone inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-
-                        passageiro = Passageiro(nome, cpf, telefone)
-                        cia.add_passageiro(passageiro)
-
-                    # Alterar passageiro
-                    elif opcao == 2:
-                        if not cia._passageiros.keys():
-                            input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
-                            continue
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                break
-                            except ValueError:
-                                print("CPF inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-
-                        cia.alterar_passageiro(cpf)
-                        print("Passageiro alterado com sucesso!")
-
-                    # Excluir passageiro
-                    elif opcao == 3:
-                        if not cia._passageiros.keys():
-                            input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
-                            continue
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                break
-                            except ValueError:
-                                print("CPF inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.excluir_passageiro(cpf)
-                        print("Passageiro excluído com sucesso!")
-
-                    # Listar passageiros
-                    elif opcao == 4:
-                        if not cia._passageiros.keys():
-                            input("Não existe passageiros cadastrados! Cadastre um passageiro primeiro...")
-                            continue
-                        cia.listar_passageiros()
-                        print("Passageiros listados com sucesso!")
-                    
-                    # Voltar
-                    elif opcao == 5:
-                        print("Voltar")
-                        break
-                    input("Pressione Enter para continuar...")
-
-            # Gerenciar funcionários
-            elif opcao == 4:
-                while True:
-                    clear()
-                    print("\nGerenciar funcionários")
-                    print("1. Cadastrar funcionário")
-                    print("2. Alterar funcionário")
-                    print("3. Excluir funcionário")
-                    print("4. Listar funcionários")
-                    print("5. Voltar")
-                    try:
-                        opcao = int(input("Escolha uma opção: "))
-                        if opcao < 1 or opcao > 5:
-                            raise ValueError
-                    except ValueError:
-                        input("Opção inválida! Tente novamente...")
+                # Excluir funcionário
+                elif opcao == 3:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
                         continue
-
-                    if opcao == 1:
-                        print("Cadastrar funcionário")
-                        # <- Nome ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                nome = str(input("Nome: "))
-                                if any(char.isdigit() for char in nome):
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Nome inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
+                    # <- CPF ->
+                    cont = 0
+                    for i in range(3):
+                        try:
+                            cpf = int(input("CPF: "))
+                            break
+                        except ValueError:
+                            print("CPF inválido! Tente novamente...")
+                            if i == 2:
+                                cont = 1
                             continue
+                    if cont == 1:
+                        input("3 tentativas falhas! Tente novamente...")
+                        continue
+                    booleano, mensagem = cia.excluir_funcionario(cpf)
+                    if booleano == False:
+                        input(mensagem)
+                        continue
+                    print("Funcionário excluído com sucesso!")
 
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                if cpf in cia._funcionarios.keys():
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                print("CPF inválido ou já cadastrado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        
-                        # <- Salário ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                salario = float(input("Salário: "))
-                                if salario < 0:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Salário inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
+                # Listar funcionários
+                elif opcao == 4:
 
-                        # <- Senha ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                senha = input("Senha: ")
-                                if len(senha) < 4:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Senha inválida! Tente novamente...")
-                                continue
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
+                        continue
+                    cia.listar_funcionarios()
+                    print("\nFuncionários listados com sucesso!")
 
-                        # <- Tipo ->
-                        print("\nTipo de funcionário:")
-                        print("1. Piloto")
-                        print("2. Comissário")
-                        print("3. Atendente")
-                        print("4. Gerente")
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                opcao = int(input("Escolha uma opção: "))
-                                if opcao < 1 or opcao > 4:
-                                    raise ValueError
-                                break
-                            except ValueError:
-                                input("Opção inválida! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
+                # Listar pilotos
+                elif opcao == 5:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
+                        continue
+                    b, m = cia.listar_pilotos()
+                    if b == False:
+                        input(m)
+                        continue
+                    print("\nPilotos listados com sucesso!")
 
-                        # <- Piloto ->
-                        if opcao == 1:
-                            # <- Horas de voo ->
-                            cont = 0
-                            for i in range(3):
-                                try:
-                                    horas_voo = int(input("\nHoras de voo: "))
-                                    if horas_voo < 0:
-                                        raise ValueError
-                                    break
-                                except ValueError:
-                                    input("Quantidade de horas inválida! Tente novamente...")
-                                    if i == 2:
-                                        cont = 1
-                                    continue
-                            if cont == 1:
-                                input("3 tentativas falhas! Tente novamente...")
-                                continue
-                    
-                            funcionario = Piloto(nome, cpf, salario, senha, horas_voo)
+                # Listar comissários
+                elif opcao == 6:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
+                        continue
+                    b, m = cia.listar_comissarios()
+                    if b == False:
+                        input(m)
+                        continue
+                    print("\nComissários listados com sucesso!")
 
-                        # <- Comissário ->
-                        elif opcao == 2:
-                            idiomas = []
-                            # <- Quantidade de idiomas ->
-                            cont = 0
-                            for i in range(3):
-                                try:
-                                    quant = int(input("Quantidade de idiomas: "))
-                                    if quant < 0:
-                                        raise ValueError
-                                    break
-                                except ValueError:
-                                    input("Quantidade de idiomas inválida! Tente novamente...")
-                                    if i == 2:
-                                        cont = 1
-                                    continue
-                            if cont == 1:
-                                input("3 tentativas falhas! Tente novamente...")
-                                continue
-                                
-                            # <- Idiomas ->
-                            for i in range(quant):
-                                while True:
-                                    try:
-                                        ind = str(input(f"Idioma {i + 1}: "))
-                                        if any(char.isdigit() for char in ind):
-                                            raise ValueError
-                                        break
-                                    except ValueError:
-                                        input("Idioma inválido! Tente novamente...")
-                                        continue
-                                idiomas.append(ind)
+                # Listar atendentes
+                elif opcao == 7:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
+                        continue
+                    b, m = cia.listar_atendentes()
+                    if b == False:
+                        input(m)
+                        continue
+                    print("\nAtendentes listados com sucesso!")
 
-                            funcionario = Comissario(nome, cpf, salario, senha, idiomas)
+                # Listar gerentes
+                elif opcao == 8:
+                    if not cia._funcionarios.keys():
+                        input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
+                        continue
+                    b, m = cia.listar_gerentes()
+                    if b == False:
+                        input(m)
+                        continue
+                    print("\nGerentes listados com sucesso!")
 
-                        # <- Atendente ->
-                        elif opcao == 3:
-                            # <- Terminal ->
-                            cont = 0
-                            for i in range(3):
-                                try:
-                                    terminal = int(input("Terminal: "))
-                                    if terminal < 0:
-                                        raise ValueError
-                                    break
-                                except ValueError:
-                                    input("Terminal inválido! Tente novamente...")
-                                    if i == 2:
-                                        cont = 1
-                                    continue
-                            if cont == 1:
-                                input("3 tentativas falhas! Tente novamente...")
-                                continue
-                            funcionario = Atendente(nome, cpf, salario, senha, terminal)
+                # Voltar
+                elif opcao == 0:
+                    print("Voltar")
+                    break
+                input("Pressione Enter para continuar...")
 
-                        # <- Gerente ->
-                        elif opcao == 4:
-                            # <- Expediente ->
-                            cont = 0
-                            for i in range(3):
-                                try:
-                                    expediente = str(input("Expediente: "))
-                                    if any(char.isdigit() for char in expediente):
-                                        raise ValueError
-                                    break
-                                except ValueError:
-                                    input("Expediente inválido! Tente novamente...")
-                                    if i == 2:
-                                        cont = 1
-                                    continue
-                            if cont == 1:
-                                input("3 tentativas falhas! Tente novamente...")
-                                continue
-                            funcionario = Gerente(nome, cpf, salario, senha, expediente)
-                        cia.add_funcionario(funcionario)
-                        print("Funcionário cadastrado com sucesso!")
-
-                    # Alterar funcionário
-                    elif opcao == 2:
-                        if not cia._funcionarios.keys():
-                            input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
-                            continue
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                if cpf not in cia._funcionarios.keys():
-                                    raise KeyError
-                                break
-                            except ValueError:
-                                print("CPF inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                            except KeyError:
-                                print("CPF não encontrado! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.alterar_funcionario(cpf)
-                        print("Funcionário alterado com sucesso!")
-
-                    # Excluir funcionário
-                    elif opcao == 3:
-                        if not cia._funcionarios.keys():
-                            input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
-                            continue
-                        # <- CPF ->
-                        cont = 0
-                        for i in range(3):
-                            try:
-                                cpf = int(input("CPF: "))
-                                break
-                            except ValueError:
-                                print("CPF inválido! Tente novamente...")
-                                if i == 2:
-                                    cont = 1
-                                continue
-                        if cont == 1:
-                            input("3 tentativas falhas! Tente novamente...")
-                            continue
-                        cia.excluir_funcionario(cpf)
-                        print("Funcionário excluído com sucesso!")
-
-                    # Listar funcionários
-                    elif opcao == 4:
-                        if not cia._funcionarios.keys():
-                            input("Não existe funcionários cadastrados! Cadastre um funcionário primeiro...")
-                            continue
-                        cia.listar_funcionarios()
-                        print("Funcionários listados com sucesso!")
-
-                    # Voltar
-                    elif opcao == 5:
-                        print("Voltar")
-                        break
-                    input("Pressione Enter para continuar...")
-
-            # Sair
-            elif opcao == 5:
-                print("Saindo...")
-                break
+        # Sair
+        elif opcao == 5:
+            print("Saindo...")
+            break
 
 if __name__ == "__main__":
     main()
